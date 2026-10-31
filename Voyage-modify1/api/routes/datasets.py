@@ -983,6 +983,12 @@ def _compute_real_registration_and_slz(
     from api.services.pair_generator import compute_real_keypoints
 
     keypoints = compute_real_keypoints(im_src_match, im_ref_match)
+    # Rescale keypoints back from match space (max 2048) to full image coordinates
+    scale_s_val = (2048.0 / max(h_s, w_s)) if max(h_s, w_s) > 2048 else 1.0
+    scale_r_val = (2048.0 / max(h_r, w_r)) if max(h_r, w_r) > 2048 else 1.0
+    for k in keypoints:
+        k["src_xy"] = [round(float(k["src_xy"][0] / scale_s_val), 2), round(float(k["src_xy"][1] / scale_s_val), 2)]
+        k["ref_xy"] = [round(float(k["ref_xy"][0] / scale_r_val), 2), round(float(k["ref_xy"][1] / scale_r_val), 2)]
 
     candidate_count = len(keypoints)
 

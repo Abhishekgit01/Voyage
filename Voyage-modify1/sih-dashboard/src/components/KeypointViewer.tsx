@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+﻿import React, { useState, useRef, useEffect } from 'react';
 import { Eye, MoveHorizontal, Grid3X3, Activity, Sparkles, ZoomIn, Layers, ChevronDown } from 'lucide-react';
 import type { KeypointMatch } from '../types';
 import { getKeypointMatches, API_BASE } from '../services/api';
@@ -226,10 +226,10 @@ export const KeypointViewer: React.FC<KeypointViewerProps> = ({
       );
       const coordBase = maxVal > 600 ? 800 : 512;
 
-      // Compute rendered image geometry under object-cover
+      // Compute rendered image geometry under object-contain (fits entire orbital swath without cropping)
       const naturalW1 = (leftEl.naturalWidth && leftEl.naturalWidth > 100) ? leftEl.naturalWidth : coordBase;
       const naturalH1 = (leftEl.naturalHeight && leftEl.naturalHeight > 100) ? leftEl.naturalHeight : coordBase;
-      const scale1 = Math.max(lr.width / naturalW1, lr.height / naturalH1);
+      const scale1 = Math.min(lr.width / naturalW1, lr.height / naturalH1);
       const renderedW1 = naturalW1 * scale1;
       const renderedH1 = naturalH1 * scale1;
       const offX1 = (lr.width - renderedW1) / 2;
@@ -237,11 +237,22 @@ export const KeypointViewer: React.FC<KeypointViewerProps> = ({
 
       const naturalW2 = (rightEl.naturalWidth && rightEl.naturalWidth > 100) ? rightEl.naturalWidth : coordBase;
       const naturalH2 = (rightEl.naturalHeight && rightEl.naturalHeight > 100) ? rightEl.naturalHeight : coordBase;
-      const scale2 = Math.max(rr.width / naturalW2, rr.height / naturalH2);
+      const scale2 = Math.min(rr.width / naturalW2, rr.height / naturalH2);
       const renderedW2 = naturalW2 * scale2;
       const renderedH2 = naturalH2 * scale2;
       const offX2 = (rr.width - renderedW2) / 2;
       const offY2 = (rr.height - renderedH2) / 2;
+
+      // Smart normalization bounds: handles full-res (e.g. 7980) or match-space (e.g. 2048) coordinates
+      const maxSrcX = Math.max(1, ...keypointData.map((k) => k.srcXy[0]));
+      const maxSrcY = Math.max(1, ...keypointData.map((k) => k.srcXy[1]));
+      const maxRefX = Math.max(1, ...keypointData.map((k) => k.refXy[0]));
+      const maxRefY = Math.max(1, ...keypointData.map((k) => k.refXy[1]));
+
+      const srcNormW = (naturalW1 > 1500 && maxSrcX <= 2048) ? Math.max(maxSrcX * 1.02, 512) : naturalW1;
+      const srcNormH = (naturalH1 > 1500 && maxSrcY <= 2048) ? Math.max(maxSrcY * 1.02, 512) : naturalH1;
+      const refNormW = (naturalW2 > 1500 && maxRefX <= 2048) ? Math.max(maxRefX * 1.02, 512) : naturalW2;
+      const refNormH = (naturalH2 > 1500 && maxRefY <= 2048) ? Math.max(maxRefY * 1.02, 512) : naturalH2;
 
       const pad = 6;
       // Container bounds relative to canvas (ensures points never escape outside image frames)
@@ -260,15 +271,15 @@ export const KeypointViewer: React.FC<KeypointViewerProps> = ({
         if (!match.isInlier && !showOutliers) return;
 
         // Calculate clamped positions inside each image frame
-        const normX1 = Math.max(0.02, Math.min(0.98, match.srcXy[0] / naturalW1));
-        const normY1 = Math.max(0.02, Math.min(0.98, match.srcXy[1] / naturalH1));
+        const normX1 = Math.max(0.02, Math.min(0.98, match.srcXy[0] / srcNormW));
+        const normY1 = Math.max(0.02, Math.min(0.98, match.srcXy[1] / srcNormH));
         const rawX1 = lr.left - canvasRect.left + offX1 + normX1 * renderedW1;
         const rawY1 = lr.top - canvasRect.top + offY1 + normY1 * renderedH1;
         const x1 = Math.max(minX1, Math.min(maxX1, rawX1));
         const y1 = Math.max(minY1, Math.min(maxY1, rawY1));
 
-        const normX2 = Math.max(0.02, Math.min(0.98, match.refXy[0] / naturalW2));
-        const normY2 = Math.max(0.02, Math.min(0.98, match.refXy[1] / naturalH2));
+        const normX2 = Math.max(0.02, Math.min(0.98, match.refXy[0] / refNormW));
+        const normY2 = Math.max(0.02, Math.min(0.98, match.refXy[1] / refNormH));
         const rawX2 = rr.left - canvasRect.left + offX2 + normX2 * renderedW2;
         const rawY2 = rr.top - canvasRect.top + offY2 + normY2 * renderedH2;
         const x2 = Math.max(minX2, Math.min(maxX2, rawX2));
@@ -524,7 +535,7 @@ export const KeypointViewer: React.FC<KeypointViewerProps> = ({
                 onLoad={() => setRepaintTick((t) => t + 1)}
                 onError={(e) => { (e.target as HTMLImageElement).src = ohrcImg; }}
                 alt="CH-2 OHRC Source"
-                className="w-full h-full object-cover"
+                className="w-full h-full object-contain"
               />
               <div className="absolute top-3 left-3 z-10 px-3 py-1 rounded-full bg-black/70 backdrop-blur-md border border-white/15 text-xs font-semibold text-white shadow-lg flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
@@ -550,7 +561,7 @@ export const KeypointViewer: React.FC<KeypointViewerProps> = ({
                 onLoad={() => setRepaintTick((t) => t + 1)}
                 onError={(e) => { (e.target as HTMLImageElement).src = lroImg; }}
                 alt="LRO NAC Reference"
-                className="w-full h-full object-cover"
+                className="w-full h-full object-contain"
               />
               <div className="absolute top-3 left-3 z-10 px-3 py-1 rounded-full bg-black/70 backdrop-blur-md border border-white/15 text-xs font-semibold text-white shadow-lg flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#2997FF]" />
@@ -599,7 +610,7 @@ export const KeypointViewer: React.FC<KeypointViewerProps> = ({
                   src={liveSrcUrl}
                   onError={(e) => { (e.target as HTMLImageElement).src = ohrcImg; }}
                   alt="CH-2 OHRC Foreground"
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-contain"
                 />
               </div>
 
@@ -728,7 +739,7 @@ export const KeypointViewer: React.FC<KeypointViewerProps> = ({
                 src={rawRefUrl}
                 onError={(e) => { (e.target as HTMLImageElement).src = lroImg; }}
                 alt={`${refLabel} Raw Reference`}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-contain"
               />
               <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/75 backdrop-blur-sm border border-white/10 text-[10px] font-semibold text-[#2997FF]">
                 RAW · {refLabel}
