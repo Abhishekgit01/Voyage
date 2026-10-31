@@ -21,6 +21,7 @@ export interface ActiveProcessingState {
   pairName?: string;
   fileCount?: number;
   stageMessage?: string;
+  progressPercent?: number;
   newScene?: ScenePreset | null;
   errorMessage?: string;
 }

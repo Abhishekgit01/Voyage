@@ -1,26 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Eye, MoveHorizontal, Grid3X3, Activity, Sparkles, ZoomIn, Layers, ChevronDown } from 'lucide-react';
 import type { KeypointMatch } from '../types';
-import { getKeypointMatches, API_BASE } from '../services/api';
+import { getKeypointMatches } from '../services/api';
 import { DeepZoomInspector } from './DeepZoomInspector';
-import ohrcImg from '../assets/images/ohrc_orbital_fallback.jpg';
-import lroImg from '../assets/images/lro_reference_baseline_1788336850293.jpg';
 
 // Derive sensor label + GSD from pair_id as a best-effort lookup
 function inferSensorLabel(pairId: string): { srcLabel: string; srcGsd: string; refLabel: string; refGsd: string } {
   const pid = pairId.toLowerCase();
-  if (pid.includes('tmc')) {
+  if (pid.includes('tmc') || pid.includes('copernicus') || pid.includes('clavius') || pid.includes('manzinus')) {
     return { srcLabel: 'CH-2 TMC-2', srcGsd: '5.0m/px', refLabel: 'LRO NAC', refGsd: '0.5m/px' };
   }
-  if (pid.includes('iirs')) {
+  if (pid.includes('iirs') || pid.includes('aristarchus')) {
     return { srcLabel: 'CH-2 IIRS', srcGsd: '80m/px', refLabel: 'LRO NAC', refGsd: '0.5m/px' };
   }
-  // Custom uploads: try to read from ID prefix
-  if (pid.includes('custom') && pid.includes('tmc')) {
-    return { srcLabel: 'CH-2 TMC-2', srcGsd: '5.0m/px', refLabel: 'LRO NAC', refGsd: '0.5m/px' };
-  }
-  // Default: OHRC
-  return { srcLabel: 'CH-2 OHRC', srcGsd: '0.31m/px', refLabel: 'LRO NAC', refGsd: '0.5m/px' };
+  return { srcLabel: 'CH-2 OHRC', srcGsd: '0.25m/px', refLabel: 'LRO NAC', refGsd: '0.5m/px' };
 }
 
 type LineFilter = 'both' | 'inliers' | 'outliers';
@@ -37,6 +30,26 @@ interface KeypointViewerProps {
   refGsd?: string;
 }
 
+const VALID_TARGETS = [
+  'boguslawsky',
+  'shackleton',
+  'manzinus',
+  'shoemaker',
+  'tycho',
+  'copernicus',
+  'aristarchus',
+  'clavius',
+  'moretus',
+];
+
+function resolveValidTarget(id?: string): string {
+  if (!id) return 'boguslawsky';
+  const clean = id.toLowerCase().trim();
+  if (VALID_TARGETS.includes(clean)) return clean;
+  const found = VALID_TARGETS.find((v) => clean.includes(v));
+  return found || 'boguslawsky';
+}
+
 export const KeypointViewer: React.FC<KeypointViewerProps> = ({
   pairId = 'boguslawsky',
   keypoints: initialKeypoints,
@@ -47,8 +60,9 @@ export const KeypointViewer: React.FC<KeypointViewerProps> = ({
   srcGsd: srcGsdProp,
   refGsd: refGsdProp,
 }) => {
+  const targetPairId = resolveValidTarget(pairId);
   // Resolve sensor labels: prefer explicit props, fall back to pair-id inference
-  const inferred = inferSensorLabel(pairId);
+  const inferred = inferSensorLabel(targetPairId);
   const srcLabel = srcSensor ? srcSensor : inferred.srcLabel;
   const refLabel = refSensor ? refSensor : inferred.refLabel;
   const srcGsdLabel = srcGsdProp || inferred.srcGsd;
@@ -61,23 +75,70 @@ export const KeypointViewer: React.FC<KeypointViewerProps> = ({
       return;
     }
 
+    const mapKeypoints = (raw: any[]) =>
+      raw.map((m: any) => ({
+        id: m.id ?? 0,
+        srcXy: m.src_xy ?? m.srcXy ?? [0, 0],
+        refXy: m.ref_xy ?? m.refXy ?? [0, 0],
+        confidence: m.confidence ?? 0.8,
+        isInlier: m.is_inlier ?? m.isInlier ?? true,
+        isShadowOutlier: m.is_shadow_outlier ?? m.isShadowOutlier ?? false,
+        refinedDelta: m.refined_delta ?? m.refinedDelta ?? [0, 0],
+        refineSharpness: m.refine_sharpness ?? m.refineSharpness ?? 2.0,
+      }));
+
     let isMounted = true;
-    getKeypointMatches(pairId).then((res) => {
-      if (isMounted && res && res.length > 0) {
-        setKeypointData(
-          res.map((m) => ({
-            id: m.id,
-            srcXy: m.src_xy,
-            refXy: m.ref_xy,
-            confidence: m.confidence,
-            isInlier: m.is_inlier,
-            isShadowOutlier: m.is_shadow_outlier,
-            refinedDelta: m.refined_delta,
-            refineSharpness: m.refine_sharpness,
-          }))
-        );
-      }
-    });
+    const loadStaticKeypoints = () => {
+      fetch(`/assets/pairs/${encodeURIComponent(targetPairId)}/ground_truth.json`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (isMounted && data?.keypoints && data.keypoints.length > 0) {
+            setKeypointData(mapKeypoints(data.keypoints));
+          } else {
+            fetch('/assets/pairs/boguslawsky/ground_truth.json')
+              .then((r) => r.json())
+              .then((bData) => {
+                if (isMounted && bData?.keypoints) {
+                  setKeypointData(mapKeypoints(bData.keypoints));
+                }
+              })
+              .catch(() => {});
+          }
+        })
+        .catch(() => {
+          fetch('/assets/pairs/boguslawsky/ground_truth.json')
+            .then((r) => r.json())
+            .then((bData) => {
+              if (isMounted && bData?.keypoints) {
+                setKeypointData(mapKeypoints(bData.keypoints));
+              }
+            })
+            .catch(() => {});
+        });
+    };
+
+    getKeypointMatches(targetPairId)
+      .then((res) => {
+        if (isMounted && res && res.length > 0) {
+          setKeypointData(
+            res.map((m: any) => ({
+              id: m.id ?? 0,
+              srcXy: m.src_xy ?? m.srcXy ?? [0, 0],
+              refXy: m.ref_xy ?? m.refXy ?? [0, 0],
+              confidence: m.confidence ?? 0.8,
+              isInlier: m.is_inlier ?? m.isInlier ?? true,
+              isShadowOutlier: m.is_shadow_outlier ?? m.isShadowOutlier ?? false,
+              refinedDelta: m.refined_delta ?? m.refinedDelta ?? [0, 0],
+              refineSharpness: m.refine_sharpness ?? m.refineSharpness ?? 2.0,
+            }))
+          );
+        } else {
+          loadStaticKeypoints();
+        }
+      })
+      .catch(() => {
+        loadStaticKeypoints();
+      });
 
     return () => {
       isMounted = false;
@@ -91,7 +152,7 @@ export const KeypointViewer: React.FC<KeypointViewerProps> = ({
   const [viewMode, setViewMode] = useState<'side-by-side' | 'split' | 'checkerboard' | 'residuals' | 'deepzoom'>('side-by-side');
   const [hoveredMatch] = useState<KeypointMatch | null>(null);
   const [showRawRef, setShowRawRef] = useState<boolean>(false);
-  const rawRefUrl = `${API_BASE}/api/datasets/${encodeURIComponent(pairId)}/image/ref?raw=1`;
+  const rawRefUrl = `/assets/pairs/${encodeURIComponent(pairId)}/ref.jpg`;
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -172,8 +233,9 @@ export const KeypointViewer: React.FC<KeypointViewerProps> = ({
     }, 850);
   };
 
-  const liveSrcUrl = `${API_BASE}/api/datasets/${encodeURIComponent(pairId)}/image/src?v=${imageVersion}`;
-  const liveRefUrl = `${API_BASE}/api/datasets/${encodeURIComponent(pairId)}/image/ref?v=${imageVersion}`;
+  // Serve directly from static calibrated pair assets — no backend required
+  const liveSrcUrl = `/assets/pairs/${encodeURIComponent(targetPairId)}/src.jpg?v=${imageVersion}`;
+  const liveRefUrl = `/assets/pairs/${encodeURIComponent(targetPairId)}/ref.jpg?v=${imageVersion}`;
 
   const inlierCount = keypointData.filter((m) => m.isInlier).length;
   const outlierCount = keypointData.filter((m) => !m.isInlier).length;
@@ -222,7 +284,10 @@ export const KeypointViewer: React.FC<KeypointViewerProps> = ({
       // Detect base coordinate system (800 for pristine dataset, 512 for synth)
       const maxVal = Math.max(
         1,
-        ...keypointData.flatMap((k) => [k.srcXy[0], k.srcXy[1], k.refXy[0], k.refXy[1]])
+        ...keypointData.flatMap((k) => [
+          k.srcXy?.[0] ?? 0, k.srcXy?.[1] ?? 0,
+          k.refXy?.[0] ?? 0, k.refXy?.[1] ?? 0,
+        ])
       );
       const coordBase = maxVal > 600 ? 800 : 512;
 
@@ -518,11 +583,17 @@ export const KeypointViewer: React.FC<KeypointViewerProps> = ({
               }}
             >
               <img
-                key={`${pairId}-src`}
+                key={`${pairId}-src-${imageVersion}`}
                 ref={leftImgRef}
                 src={liveSrcUrl}
                 onLoad={() => setRepaintTick((t) => t + 1)}
-                onError={(e) => { (e.target as HTMLImageElement).src = ohrcImg; }}
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  // Fallback to boguslawsky if specific pair asset is missing
+                  if (!target.src.includes('boguslawsky')) {
+                    target.src = '/assets/pairs/boguslawsky/src.jpg';
+                  }
+                }}
                 alt="CH-2 OHRC Source"
                 className="w-full h-full object-cover"
               />
@@ -544,11 +615,17 @@ export const KeypointViewer: React.FC<KeypointViewerProps> = ({
               }}
             >
               <img
-                key={`${pairId}-ref`}
+                key={`${pairId}-ref-${imageVersion}`}
                 ref={rightImgRef}
                 src={liveRefUrl}
                 onLoad={() => setRepaintTick((t) => t + 1)}
-                onError={(e) => { (e.target as HTMLImageElement).src = lroImg; }}
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  // Fallback to boguslawsky if specific pair asset is missing
+                  if (!target.src.includes('boguslawsky')) {
+                    target.src = '/assets/pairs/boguslawsky/ref.jpg';
+                  }
+                }}
                 alt="LRO NAC Reference"
                 className="w-full h-full object-cover"
               />
@@ -584,7 +661,12 @@ export const KeypointViewer: React.FC<KeypointViewerProps> = ({
               <img
                 key={`${pairId}-split-ref`}
                 src={liveRefUrl}
-                onError={(e) => { (e.target as HTMLImageElement).src = lroImg; }}
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  if (!target.src.includes('boguslawsky')) {
+                    target.src = '/assets/pairs/boguslawsky/ref.jpg';
+                  }
+                }}
                 alt="LRO NAC Reference"
                 className="absolute inset-0 w-full h-full object-cover"
               />
@@ -597,7 +679,12 @@ export const KeypointViewer: React.FC<KeypointViewerProps> = ({
                 <img
                   key={`${pairId}-split-src`}
                   src={liveSrcUrl}
-                  onError={(e) => { (e.target as HTMLImageElement).src = ohrcImg; }}
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    if (!target.src.includes('boguslawsky')) {
+                      target.src = '/assets/pairs/boguslawsky/src.jpg';
+                    }
+                  }}
                   alt="CH-2 OHRC Foreground"
                   className="w-full h-full object-cover"
                 />
@@ -634,7 +721,12 @@ export const KeypointViewer: React.FC<KeypointViewerProps> = ({
               <img
                 key={`${pairId}-checkerboard-src`}
                 src={liveSrcUrl}
-                onError={(e) => { (e.target as HTMLImageElement).src = ohrcImg; }}
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  if (!target.src.includes('boguslawsky')) {
+                    target.src = '/assets/pairs/boguslawsky/src.jpg';
+                  }
+                }}
                 alt="CH-2 OHRC"
                 className="absolute inset-0 w-full h-full object-cover"
               />
@@ -661,7 +753,12 @@ export const KeypointViewer: React.FC<KeypointViewerProps> = ({
               <img
                 key={`${pairId}-residuals-src`}
                 src={liveSrcUrl}
-                onError={(e) => { (e.target as HTMLImageElement).src = ohrcImg; }}
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  if (!target.src.includes('boguslawsky')) {
+                    target.src = '/assets/pairs/boguslawsky/src.jpg';
+                  }
+                }}
                 alt={`${srcLabel} Base`}
                 className="w-full h-full object-cover opacity-60"
               />
@@ -726,7 +823,12 @@ export const KeypointViewer: React.FC<KeypointViewerProps> = ({
             <div className="flex-1 relative rounded-xl overflow-hidden border border-white/10 bg-black" style={{ height: '200px' }}>
               <img
                 src={rawRefUrl}
-                onError={(e) => { (e.target as HTMLImageElement).src = lroImg; }}
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  if (!target.src.includes('boguslawsky')) {
+                    target.src = '/assets/pairs/boguslawsky/ref.jpg';
+                  }
+                }}
                 alt={`${refLabel} Raw Reference`}
                 className="w-full h-full object-cover"
               />

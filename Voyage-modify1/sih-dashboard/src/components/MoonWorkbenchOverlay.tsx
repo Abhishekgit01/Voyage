@@ -28,14 +28,19 @@ export interface ProbedLocation {
 
 const VisualProgressBar: React.FC<{
   status: 'idle' | 'processing' | 'completed' | 'error';
-}> = ({ status }) => {
-  const [progress, setProgress] = useState(14);
+  progressPercent?: number;
+}> = ({ status, progressPercent }) => {
+  const [internalProgress, setInternalProgress] = useState(14);
 
   useEffect(() => {
+    if (progressPercent !== undefined) {
+      setInternalProgress(progressPercent);
+      return;
+    }
     if (status === 'processing') {
-      setProgress(16);
+      setInternalProgress(16);
       const timer = setInterval(() => {
-        setProgress((prev) => {
+        setInternalProgress((prev) => {
           if (prev >= 93) return prev;
           const remaining = 93 - prev;
           const step = Math.max(1, Math.floor(remaining * 0.1));
@@ -44,15 +49,16 @@ const VisualProgressBar: React.FC<{
       }, 350);
       return () => clearInterval(timer);
     } else if (status === 'completed') {
-      setProgress(100);
+      setInternalProgress(100);
     } else {
-      setProgress(0);
+      setInternalProgress(0);
     }
-  }, [status]);
+  }, [status, progressPercent]);
 
   if (status !== 'processing' && status !== 'completed') return null;
 
   const isDone = status === 'completed';
+  const displayProgress = progressPercent !== undefined ? progressPercent : internalProgress;
 
   return (
     <div className="w-full flex flex-col gap-1.5 mt-1">
@@ -61,7 +67,7 @@ const VisualProgressBar: React.FC<{
           {isDone ? 'Pipeline Complete' : 'Processing Progress'}
         </span>
         <span className={`font-bold transition-colors duration-300 ${isDone ? 'text-emerald-400' : 'text-[#2997FF]'}`}>
-          {Math.round(progress)}%
+          {Math.round(displayProgress)}%
         </span>
       </div>
 
@@ -72,7 +78,7 @@ const VisualProgressBar: React.FC<{
               ? 'bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.8)]'
               : 'bg-gradient-to-r from-[#0071E3] via-[#2997FF] to-[#64D2FF] shadow-[0_0_12px_rgba(41,151,255,0.8)]'
           }`}
-          style={{ width: `${progress}%` }}
+          style={{ width: `${displayProgress}%` }}
         >
           {/* Leading edge glow bead */}
           <div className="absolute right-0 top-0 bottom-0 w-1.5 rounded-full bg-white/70 shadow-[0_0_6px_rgba(255,255,255,0.9)]" />
@@ -330,7 +336,7 @@ export const MoonWorkbenchOverlay: React.FC<MoonWorkbenchOverlayProps> = ({
             </div>
 
             {/* Visual Dynamic Progress Bar */}
-            <VisualProgressBar status={processingState.status} />
+            <VisualProgressBar status={processingState.status} progressPercent={processingState.progressPercent} />
 
             {/* Complete Processing Action Button */}
             {processingState.status === 'completed' && onCompleteProcessing && (
