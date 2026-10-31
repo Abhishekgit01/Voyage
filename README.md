@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🛰️ VOYAGE (SIH 2026 | PS-26166)
+# 🛰️ VOYAGE (Quantum RIT Hackathon | Q-Hack)
 ### Autonomous Cross-Sensor Lunar Co-Registration, Landing Safety & Quantum Correspondence Engine
 
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
@@ -12,7 +12,7 @@
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
 [![Railway](https://img.shields.io/badge/Railway-Deployable-0B0D0E?style=for-the-badge&logo=railway&logoColor=white)](https://railway.app/)
 
-**Designed for the Indian Space Research Organisation (ISRO) & Smart India Hackathon 2026**  
+**Developed for the Quantum RIT Hackathon (Q-Hack)**  
 *Autonomous, scale-invariant, illumination-robust optical correspondence and Safe Landing Zone (SLZ) verification pipeline for Chandrayaan-2 payloads (OHRC, TMC-2, IIRS) and global lunar baselines (LRO NAC, WAC).*
 
 ---
@@ -199,8 +199,8 @@ $$\delta y = \frac{R(x_0, y_0-1) - R(x_0, y_0+1)}{2 \cdot [R(x_0, y_0-1) - 2R(x_
 
 ## 👥 Contributors & Attribution
 
-- **Smart India Hackathon 2026** — Team Voyage
-- **Problem Statement**: PS-26166 (Automated Optical Image Correspondence & Registration)
+- **Quantum RIT Hackathon (Q-Hack)** — Team Voyage
+- **Domain**: Quantum Image Co-Registration, QAOA Graph Consensus & Precision Lunar Navigation
 - **Primary Data Sources**:
   - **ISRO ISSDC PRADAN**: Chandrayaan-2 OHRC, TMC-2, and IIRS data products courtesy of the Indian Space Research Organisation.
   - **NASA PDS / Washington University ODE**: LRO NAC / WAC data products courtesy of NASA / GSFC / Arizona State University.
@@ -208,6 +208,6 @@ $$\delta y = \frac{R(x_0, y_0-1) - R(x_0, y_0+1)}{2 \cdot [R(x_0, y_0-1) - 2R(x_
 ---
 
 <div align="center">
-  <b>VOYAGE · Smart India Hackathon 2026 · PS-26166</b><br/>
+  <b>VOYAGE · Quantum RIT Hackathon · Q-Hack</b><br/>
   <i>Pioneering Precision Autonomous Lunar Navigation & Landing Site Certification.</i>
 </div>
