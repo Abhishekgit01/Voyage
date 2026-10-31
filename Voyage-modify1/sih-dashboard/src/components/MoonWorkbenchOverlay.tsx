@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Plus, Minus, RotateCcw, Globe, GitCommit, FlaskConical, Atom,
   ChevronDown, Play, Check, Sliders, Upload,
-  RefreshCw, CheckCircle2, ArrowRight, AlertTriangle, X
+  RefreshCw, CheckCircle2, ArrowRight, AlertTriangle, X, Lock
 } from 'lucide-react';
 import {
   PipelineStage,
@@ -136,6 +136,7 @@ export const MoonWorkbenchOverlay: React.FC<MoonWorkbenchOverlayProps> = ({
 }) => {
   const isRunning = pipelineStage !== PipelineStage.Idle && pipelineStage !== PipelineStage.Done;
   const isDone = pipelineStage === PipelineStage.Done;
+  const isProcessing = processingState?.status === 'processing';
 
   return (
     <div className="absolute inset-0 w-full h-full pointer-events-none overflow-hidden select-none font-sans z-20">
@@ -160,15 +161,24 @@ export const MoonWorkbenchOverlay: React.FC<MoonWorkbenchOverlayProps> = ({
 
           {/* Current Crater Selector (Opens Target Palette) */}
           <button
-            onClick={onOpenTargetPalette}
-            className="flex items-center gap-2 text-white/80 hover:text-white transition-colors cursor-pointer group"
-            title="Open Lunar Target Palette"
+            onClick={() => !isProcessing && onOpenTargetPalette()}
+            disabled={isProcessing}
+            className={`flex items-center gap-2 transition-colors group ${
+              isProcessing
+                ? 'opacity-50 cursor-not-allowed text-white/50'
+                : 'text-white/80 hover:text-white cursor-pointer'
+            }`}
+            title={isProcessing ? 'Target switching locked during telemetry processing' : 'Open Lunar Target Palette'}
           >
-            <span className="w-2 h-2 rounded-full bg-[#2997FF] shadow-[0_0_8px_rgba(41,151,255,0.8)]" />
+            <span className={`w-2 h-2 rounded-full ${isProcessing ? 'bg-amber-400 animate-pulse' : 'bg-[#2997FF] shadow-[0_0_8px_rgba(41,151,255,0.8)]'}`} />
             <span className="text-xs font-semibold max-w-[105px] sm:max-w-[160px] md:max-w-none truncate">
-              {selectedScene.name}
+              {isProcessing ? `Processing: ${processingState?.pairName || 'Ingest'}` : selectedScene.name}
             </span>
-            <ChevronDown size={13} className="text-white/40 group-hover:text-white transition-transform group-hover:translate-y-0.5" />
+            {isProcessing ? (
+              <Lock size={11} className="text-amber-400" />
+            ) : (
+              <ChevronDown size={13} className="text-white/40 group-hover:text-white transition-transform group-hover:translate-y-0.5" />
+            )}
           </button>
 
           {/* Add Files Button (Right beside crater selector) */}
@@ -176,9 +186,14 @@ export const MoonWorkbenchOverlay: React.FC<MoonWorkbenchOverlayProps> = ({
             <>
               <div className="w-px h-4 bg-white/20" />
               <button
-                onClick={onOpenAddFiles}
-                className="flex items-center gap-1.5 text-white/75 hover:text-white transition-all cursor-pointer group active:scale-95 text-xs font-semibold"
-                title="Add Lunar Mission Imagery / PDS-4 Files"
+                onClick={() => !isProcessing && onOpenAddFiles()}
+                disabled={isProcessing}
+                className={`flex items-center gap-1.5 transition-all text-xs font-semibold ${
+                  isProcessing
+                    ? 'opacity-40 cursor-not-allowed text-white/40'
+                    : 'text-white/75 hover:text-white transition-all cursor-pointer group active:scale-95'
+                }`}
+                title={isProcessing ? 'Co-registration pipeline busy (30s)' : 'Add Lunar Mission Imagery / PDS-4 Files'}
               >
                 <Upload size={12} className="text-[#2997FF] group-hover:scale-110 transition-transform" />
                 <span>Add Files</span>
@@ -203,38 +218,50 @@ export const MoonWorkbenchOverlay: React.FC<MoonWorkbenchOverlayProps> = ({
         </button>
 
         <button
-          onClick={() => onTabChange('2d')}
-          className={`flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-full font-semibold transition-all cursor-pointer text-xs ${
-            activeTab === '2d'
-              ? 'bg-white text-black shadow-md'
-              : 'text-white/65 hover:text-white hover:bg-white/10'
+          onClick={() => !isProcessing && onTabChange('2d')}
+          disabled={isProcessing}
+          title={isProcessing ? 'Processing mission ingest (30s)... Output locked until complete' : '2D Alignment'}
+          className={`flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-full font-semibold transition-all text-xs ${
+            isProcessing
+              ? 'opacity-40 cursor-not-allowed text-white/40'
+              : activeTab === '2d'
+              ? 'bg-white text-black shadow-md cursor-pointer'
+              : 'text-white/65 hover:text-white hover:bg-white/10 cursor-pointer'
           }`}
         >
-          <GitCommit size={13} />
+          {isProcessing ? <Lock size={12} className="text-amber-400" /> : <GitCommit size={13} />}
           <span>2D Alignment</span>
         </button>
 
         <button
-          onClick={() => onTabChange('results')}
-          className={`flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-full font-semibold transition-all cursor-pointer text-xs ${
-            activeTab === 'results'
-              ? 'bg-white text-black shadow-md'
-              : 'text-white/65 hover:text-white hover:bg-white/10'
+          onClick={() => !isProcessing && onTabChange('results')}
+          disabled={isProcessing}
+          title={isProcessing ? 'Processing mission ingest (30s)... Output locked until complete' : 'Findings'}
+          className={`flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-full font-semibold transition-all text-xs ${
+            isProcessing
+              ? 'opacity-40 cursor-not-allowed text-white/40'
+              : activeTab === 'results'
+              ? 'bg-white text-black shadow-md cursor-pointer'
+              : 'text-white/65 hover:text-white hover:bg-white/10 cursor-pointer'
           }`}
         >
-          <FlaskConical size={13} />
+          {isProcessing ? <Lock size={12} className="text-amber-400" /> : <FlaskConical size={13} />}
           <span>Findings</span>
         </button>
 
         <button
-          onClick={() => onTabChange('quantum')}
-          className={`flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-full font-semibold transition-all cursor-pointer text-xs ${
-            activeTab === 'quantum'
-              ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-md font-bold'
-              : 'text-cyan-300/80 hover:text-cyan-200 hover:bg-cyan-500/10'
+          onClick={() => !isProcessing && onTabChange('quantum')}
+          disabled={isProcessing}
+          title={isProcessing ? 'Processing mission ingest (30s)... Output locked until complete' : 'Quantum Lab'}
+          className={`flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-full font-semibold transition-all text-xs ${
+            isProcessing
+              ? 'opacity-40 cursor-not-allowed text-cyan-400/40'
+              : activeTab === 'quantum'
+              ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-md font-bold cursor-pointer'
+              : 'text-cyan-300/80 hover:text-cyan-200 hover:bg-cyan-500/10 cursor-pointer'
           }`}
         >
-          <Atom size={13} className="text-cyan-300" />
+          {isProcessing ? <Lock size={12} className="text-cyan-400" /> : <Atom size={13} className="text-cyan-300" />}
           <span>Quantum Lab</span>
         </button>
 
@@ -258,21 +285,25 @@ export const MoonWorkbenchOverlay: React.FC<MoonWorkbenchOverlayProps> = ({
         {/* Primary Action Button: Run Co-Registration */}
         <button
           onClick={onRunPipeline}
-          disabled={isRunning}
-          className={`flex items-center gap-2 px-6 py-2.5 rounded-full font-bold text-xs tracking-wide uppercase transition-all cursor-pointer active:scale-95 shadow-md ${
-            isDone
-              ? 'bg-white text-black shadow-lg hover:bg-white/90'
+          disabled={isRunning || isProcessing}
+          className={`flex items-center gap-2 px-6 py-2.5 rounded-full font-bold text-xs tracking-wide uppercase transition-all shadow-md ${
+            isProcessing
+              ? 'bg-white/10 text-white/40 cursor-not-allowed'
+              : isDone
+              ? 'bg-white text-black shadow-lg hover:bg-white/90 cursor-pointer active:scale-95'
               : isRunning
               ? 'bg-white/10 text-white/40 cursor-not-allowed'
-              : 'bg-[#0071E3] hover:bg-[#0077ED] text-white shadow-[0_0_20px_rgba(0,113,227,0.5)]'
+              : 'bg-[#0071E3] hover:bg-[#0077ED] text-white shadow-[0_0_20px_rgba(0,113,227,0.5)] cursor-pointer active:scale-95'
           }`}
         >
-          {isDone ? (
+          {isProcessing ? (
+            <RefreshCw size={14} className="animate-spin text-amber-400" />
+          ) : isDone ? (
             <Check size={14} strokeWidth={3} className="text-emerald-600" />
           ) : (
             <Play size={14} className={isRunning ? 'animate-spin' : 'fill-current'} />
           )}
-          <span>{isDone ? 'Co-Registered' : isRunning ? 'Aligning...' : 'Run Co-Registration'}</span>
+          <span>{isProcessing ? 'Processing Ingest (30s)...' : isDone ? 'Co-Registered' : isRunning ? 'Aligning...' : 'Run Co-Registration'}</span>
         </button>
       </div>
 

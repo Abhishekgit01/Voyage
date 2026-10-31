@@ -233,6 +233,13 @@ export function App() {
       .catch(() => setPairSensorInfo(null));
   }, [selectedScene.id, backendPairs, isBackendOnline]);
 
+  // Guard: Strictly keep user on 3D globe monitor while 30s co-registration is processing
+  useEffect(() => {
+    if (processingState?.status === 'processing' && activeCenterTab !== '3d') {
+      setActiveCenterTab('3d');
+    }
+  }, [processingState?.status, activeCenterTab]);
+
   useEffect(() => {
     if (!isBackendOnline) {
       setLiveSlz(null);
@@ -547,10 +554,9 @@ const MISSION_ORBITAL_CORRIDORS: ScenePreset[] = [
     const nextIdx = (currentIdx >= 0 ? currentIdx + 1 : 1) % MISSION_ORBITAL_CORRIDORS.length;
 
     const matchedCorridor = MISSION_ORBITAL_CORRIDORS[nextIdx];
-    // Set selectedScene immediately so any view of 2D or Findings shows the new target right away!
-    setSelectedScene(matchedCorridor);
 
-    // 1. Return user to workbench view
+    // 1. Return user to workbench view & switch tab strictly to 3D globe
+    setActiveCenterTab('3d');
     setAppMode('workbench');
     setIsAddFilesOpen(false);
     window.location.hash = 'workbench';
@@ -658,8 +664,14 @@ const MISSION_ORBITAL_CORRIDORS: ScenePreset[] = [
           cameraZoom={cameraZoom}
           craters={craters}
           isDrawerOpen={isTargetPaletteOpen || isEngineInspectorOpen}
-          onSelectCrater={(c) => setSelectedScene(c as any)}
-          onInspectIn2D={() => setActiveCenterTab('2d')}
+          onSelectCrater={(c) => {
+            if (processingState?.status === 'processing') return;
+            setSelectedScene(c as any);
+          }}
+          onInspectIn2D={() => {
+            if (processingState?.status === 'processing') return;
+            setActiveCenterTab('2d');
+          }}
           layers={layers}
         />
       </div>
@@ -675,7 +687,7 @@ const MISSION_ORBITAL_CORRIDORS: ScenePreset[] = [
         /* ── 2. 3D MISSION CONTROL WORKBENCH ── */
         <div className="relative z-10 w-full h-full overflow-hidden pointer-events-none">
           {/* Center 2D Registration & Findings View (Conditional overlay) */}
-          {activeCenterTab === '2d' && (
+          {activeCenterTab === '2d' && processingState?.status !== 'processing' && (
             <div className="absolute inset-0 w-full h-full z-10 pt-20 pb-20 px-4 md:px-12 bg-black/85 backdrop-blur-2xl overflow-hidden pointer-events-auto">
               <TabErrorBoundary label="2D Alignment Viewer">
                 <KeypointViewer
@@ -691,7 +703,7 @@ const MISSION_ORBITAL_CORRIDORS: ScenePreset[] = [
             </div>
           )}
 
-          {activeCenterTab === 'results' && (
+          {activeCenterTab === 'results' && processingState?.status !== 'processing' && (
             <div className="absolute inset-0 w-full h-full z-10 pt-20 pb-20 px-4 md:px-12 bg-black/85 backdrop-blur-2xl overflow-y-auto sidebar-scroll pointer-events-auto">
               <TabErrorBoundary label="Findings & Results">
                 <ResultsView
@@ -706,7 +718,7 @@ const MISSION_ORBITAL_CORRIDORS: ScenePreset[] = [
             </div>
           )}
 
-          {activeCenterTab === 'quantum' && (
+          {activeCenterTab === 'quantum' && processingState?.status !== 'processing' && (
             <div className="absolute inset-0 w-full h-full z-10 pt-20 pb-20 px-4 md:px-12 bg-black/85 backdrop-blur-2xl overflow-y-auto sidebar-scroll pointer-events-auto">
               <TabErrorBoundary label="Quantum Lab">
                 <QuantumLab selectedPairId={selectedScene.id} />
@@ -717,7 +729,10 @@ const MISSION_ORBITAL_CORRIDORS: ScenePreset[] = [
           {/* Floating Aerospace Island HUD */}
           <MoonWorkbenchOverlay
             selectedScene={selectedScene}
-            onSelectScene={(scene) => setSelectedScene(scene)}
+            onSelectScene={(scene) => {
+              if (processingState?.status === 'processing') return;
+              setSelectedScene(scene);
+            }}
             layers={layers}
             onLayerChange={(l) => setLayers(l)}
             options={options}
@@ -726,7 +741,10 @@ const MISSION_ORBITAL_CORRIDORS: ScenePreset[] = [
             onZoomOut={handleZoomOut}
             onResetView={handleResetView}
             activeTab={activeCenterTab}
-            onTabChange={(t) => setActiveCenterTab(t)}
+            onTabChange={(t) => {
+              if (processingState?.status === 'processing' && t !== '3d') return;
+              setActiveCenterTab(t);
+            }}
             onBackToLanding={handleBackToLanding}
             onOpenTargetPalette={() => setIsTargetPaletteOpen(true)}
             onOpenEngineInspector={() => setIsEngineInspectorOpen(true)}
