@@ -1,4 +1,4 @@
-"""
+﻿"""
 backend/api/routes/datasets.py
 -------------------------------
 Serves the pair manifest from data/pairs/manifest.jsonl and provides
@@ -735,60 +735,92 @@ def _parse_pds4_html_page(html_path: Path) -> Optional[dict]:
     return result
 
 
-def _select_or_fetch_reference(center_lat: float, center_lon: float, ref_target: Path) -> str:
-    """
-    Select or fetch an authentic LRO NAC reference image matching the target coordinates.
-    For polar targets (|lat| >= 65), uses high-resolution LRO NAC polar strips (e.g. M101350392LC).
-    For equatorial / mid-latitude targets, uses calibrated LRO NAC baseline rasters.
-    """
-    import urllib.request
-    Image.MAX_IMAGE_PIXELS = None
-    ref_nac_dir = PROJECT_ROOT / "data" / "reference" / "nac"
-    ref_nac_dir.mkdir(parents=True, exist_ok=True)
-
-    # 1. Polar coverage (|lat| >= 65.0 deg)
-    if abs(center_lat) >= 65.0:
-        polar_strips = [
-            ("M101350392LC", ref_nac_dir / "M101350392LC_pyr.tif", 0, 12000),
-            ("M102624551RC", ref_nac_dir / "M102624551RC_pyr.tif", 0, 10000),
-            ("M102624551LC", ref_nac_dir / "M102624551LC_pyr.tif", 0, 10000),
-        ]
-        for prod_id, tpath, y_start, y_end in polar_strips:
-            if tpath.exists():
-                try:
-                    with Image.open(tpath) as im:
-                        crop = im.crop((0, y_start, im.size[0], min(im.size[1], y_end)))
-                        crop.convert("RGB").save(ref_target, format="JPEG", quality=95)
-                    logger.info("Paired authentic polar LRO reference %s for lat %.2f", prod_id, center_lat)
-                    return prod_id
-                except Exception as e:
-                    logger.warning("Could not crop from %s: %s", tpath, e)
-
-        # On-the-fly download of polar LRO NAC strip if missing
-        try:
-            fetch_url = "https://pds.lroc.im-ldi.com/data/LRO-L-LROC-3-CDR-V1.0/LROLRC_1001/EXTRAS/BROWSE/2009185/M101350392LC_pyr.tif"
-            pyr_dest = ref_nac_dir / "M101350392LC_pyr.tif"
-            logger.info("Downloading LRO NAC polar reference %s...", fetch_url)
-            urllib.request.urlretrieve(fetch_url, pyr_dest)
-            with Image.open(pyr_dest) as im:
-                crop = im.crop((0, 0, im.size[0], 12000))
-                crop.convert("RGB").save(ref_target, format="JPEG", quality=95)
-            return "M101350392LC"
-        except Exception as e:
-            logger.warning("Could not download on-the-fly polar reference: %s", e)
-
-    # 2. Equatorial / Mid-latitude coverage
-    assets_dir = PROJECT_ROOT / "sih-dashboard" / "src" / "assets" / "images"
-    lro_highres = assets_dir / "copernicus_target.jpg"
-    if not lro_highres.exists():
-        lro_highres = assets_dir / "lro_reference_baseline_1788336850293.jpg"
-
-    if lro_highres.exists():
-        shutil.copyfile(lro_highres, ref_target)
-        return "LRO_NAC_COPERNICUS"
-
-    return "LRO_NAC_DEFAULT"
-
+def _select_or_fetch_reference(center_lat: float, center_lon: float, ref_target: Path) -> str:
+    """
+    Select or fetch an authentic LRO NAC reference image matching the target coordinates.
+
+    Priority order:
+      1. Local pre-downloaded polar strip  (|lat| >= 65, instant -- no network)
+      2. NASA ODE REST API live query      (any lat/lon, ~10-30 s, GeoTIFF preferred)
+      3. Stock baseline JPEG fallback      (always available, no network)
+    """
+    Image.MAX_IMAGE_PIXELS = None
+    ref_nac_dir = PROJECT_ROOT / "data" / "reference" / "nac"
+    ref_nac_dir.mkdir(parents=True, exist_ok=True)
+    assets_dir = PROJECT_ROOT / "sih-dashboard" / "src" / "assets" / "images"
+
+    # -- 1. Local polar strips (instant fast-path for polar targets) --
+    if abs(center_lat) >= 65.0:
+        polar_strips = [
+            ("M101350392LC", ref_nac_dir / "M101350392LC_pyr.tif", 0, 12000),
+            ("M102624551RC", ref_nac_dir / "M102624551RC_pyr.tif", 0, 10000),
+            ("M102624551LC", ref_nac_dir / "M102624551LC_pyr.tif", 0, 10000),
+        ]
+        for prod_id, tpath, y_start, y_end in polar_strips:
+            if tpath.exists():
+                try:
+                    with Image.open(tpath) as im:
+                        crop = im.crop((0, y_start, im.size[0], min(im.size[1], y_end)))
+                        crop.convert("RGB").save(ref_target, format="JPEG", quality=95)
+                    logger.info("Paired local polar LRO strip %s for lat=%.2f", prod_id, center_lat)
+                    return prod_id
+                except Exception as e:
+                    logger.warning("Could not crop from %s: %s", tpath, e)
+
+    # -- 2. NASA ODE REST API -- live query for matching NAC strip --
+    tmp_dir = ref_target.parent / "_ref_tmp"
+    try:
+        from src.ingest.reference import query_ode_nac
+
+        pad_deg = 0.10
+        footprint_ll = [
+            [center_lon - pad_deg, center_lat - pad_deg],
+            [center_lon + pad_deg, center_lat - pad_deg],
+            [center_lon + pad_deg, center_lat + pad_deg],
+            [center_lon - pad_deg, center_lat + pad_deg],
+        ]
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        logger.info("Querying NASA ODE for LRO NAC at lat=%.4f lon=%.4f ...", center_lat, center_lon)
+        nac_path = query_ode_nac(
+            footprint_ll=footprint_ll,
+            padding_m=5000,
+            out_dir=str(tmp_dir),
+            timeout_s=25,
+        )
+        if nac_path:
+            nac_file = Path(nac_path)
+            prod_stem = nac_file.stem
+            try:
+                with Image.open(nac_file) as raw_im:
+                    raw_arr = np.array(raw_im.convert("L"), dtype=np.float32)
+                p1, p99 = float(np.percentile(raw_arr, 1)), float(np.percentile(raw_arr, 99))
+                span = max(p99 - p1, 1e-6)
+                norm = np.clip((raw_arr - p1) / span * 255.0, 0, 255).astype(np.uint8)
+                Image.fromarray(norm).convert("RGB").save(ref_target, format="JPEG", quality=95)
+                logger.info("ODE NAC reference saved: %s  (%d KB -> %s)", prod_stem,
+                            nac_file.stat().st_size // 1024, ref_target.name)
+                return f"LRO_NAC_{prod_stem}"
+            except Exception as conv_err:
+                logger.warning("ODE NAC convert failed (%s): %s", nac_path, conv_err)
+        else:
+            logger.info("ODE returned no NAC products for lat=%.4f lon=%.4f", center_lat, center_lon)
+    except Exception as ode_err:
+        logger.warning("ODE NAC fetch skipped: %s", ode_err)
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    # -- 3. Stock baseline fallback (always works, no network) --
+    for candidate in [
+        assets_dir / "lro_reference_baseline_1788336850293.jpg",
+        assets_dir / "copernicus_target.jpg",
+    ]:
+        if candidate.exists():
+            shutil.copyfile(str(candidate), str(ref_target))
+            logger.info("Using stock LRO reference fallback: %s", candidate.name)
+            return "LRO_NAC_FALLBACK"
+
+    logger.error("No reference image available -- ref_target will be missing!")
+    return "LRO_NAC_UNAVAILABLE"
 @router.post("/upload")
 async def upload_dataset_files(
     files: List[UploadFile] = File(...),
