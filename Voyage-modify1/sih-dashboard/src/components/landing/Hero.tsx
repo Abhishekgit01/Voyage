@@ -71,8 +71,8 @@ export const Hero: React.FC<HeroProps> = ({ onNext, onLaunchWorkbench, isLaunchi
       </div>
 
       {/* Bottom Bar: Clean Subtle Footer */}
-      <div className="relative z-10 max-w-7xl mx-auto w-full pt-4 flex items-center justify-between border-t border-white/[0.08] text-xs text-[#86868b] font-sans">
-        <div>Problem Statement 26166 • Autonomous Precision Engine</div>
+      <div className="relative z-10 max-w-7xl mx-auto w-full pt-4 flex items-center justify-end border-t border-white/[0.08] text-xs text-[#86868b] font-sans">
+        
         <button
           onClick={onNext}
           disabled={isLaunching}

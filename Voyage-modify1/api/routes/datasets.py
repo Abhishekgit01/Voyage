@@ -1062,6 +1062,7 @@ async def upload_dataset_files(
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
 
+    MANIFEST_PATH.parent.mkdir(parents=True, exist_ok=True)
     with open(MANIFEST_PATH, "a", encoding="utf-8") as f:
         f.write(json.dumps(manifest_entry) + "\n")
 

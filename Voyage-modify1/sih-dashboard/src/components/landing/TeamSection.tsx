@@ -2,12 +2,10 @@ import React from 'react';
 
 export const TeamSection: React.FC = () => {
   const teamMembers = [
-    { id: '01', name: 'ABHISHEK R P', role: 'RESEARCHER' },
-    { id: '02', name: 'ANKITHA V', role: 'RESEARCHER' },
-    { id: '03', name: 'MONISH DEV B M', role: 'RESEARCHER' },
-    { id: '04', name: 'PIYUSH KUMAR SHUKLA', role: 'RESEARCHER' },
-    { id: '05', name: 'POORNACHANDRA B L', role: 'RESEARCHER' },
-    { id: '06', name: 'UTKARSH TIWARI', role: 'RESEARCHER' },
+    { id: '01', name: 'ABHISHEK R P' },
+    { id: '02', name: 'MONISH DEV B M' },
+    { id: '03', name: 'PIYUSH KUMAR SHUKLA' },
+    { id: '04', name: 'POORNACHANDRA B L' },
   ];
 
   return (
@@ -34,7 +32,7 @@ export const TeamSection: React.FC = () => {
         </div>
 
         {/* Minimal Editorial Layout: Exactly 6 Members in 2 rows of 3 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 lg:gap-x-12 gap-y-10 lg:gap-y-14">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-8 lg:gap-x-10 gap-y-10 lg:gap-y-14">
           {teamMembers.map((member) => (
             <div
               key={member.id}
@@ -53,15 +51,6 @@ export const TeamSection: React.FC = () => {
                 <h3 className="font-headline text-lg sm:text-xl md:text-2xl font-bold text-[#E7E3D9] tracking-tight uppercase group-hover:text-[#D6C38B] transition-colors">
                   {member.name}
                 </h3>
-                <div className="font-mono-tech text-xs text-[#D6C38B]/90 font-medium tracking-wider uppercase">
-                  {member.role}
-                </div>
-              </div>
-
-              {/* Subtle accent divider */}
-              <div className="pt-3 border-t border-subtle/40 font-mono-tech text-[10px] text-[#8B908F] flex items-center justify-between">
-                <span>CHANDRAYAAN RESEARCH</span>
-                <span className="text-[#8B908F]/60">ECLIPSE</span>
               </div>
             </div>
           ))}
@@ -75,7 +64,7 @@ export const TeamSection: React.FC = () => {
           CHANDRAYAAN • SECTION 03 / 03
         </div>
         <div className="font-mono-tech text-[10px] text-[#D6C38B]/80 tracking-widest uppercase">
-          ECLIPSE MISSION RESEARCH
+          MISSION RESEARCH
         </div>
       </div>
     </section>
