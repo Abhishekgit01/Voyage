@@ -1,4 +1,4 @@
-"""
+﻿"""
 src/ingest/reference.py
 ========================
 F02 — Automated Reference Patch Acquisition.
@@ -194,19 +194,25 @@ def query_ode_nac(
 
     lon_min, lat_min, lon_max, lat_max = bbox
 
-    # Build ODE RESTFUL API request
+    # Normalize longitudes to [0, 360] East for NASA Lunar ODE
+    w_lon = min(lon_min, lon_max) % 360.0
+    e_lon = max(lon_min, lon_max) % 360.0
+    if w_lon > e_lon:
+        w_lon, e_lon = e_lon, w_lon
+
+    # Build ODE RESTFUL API request (single-call query with results=fp)
     params = {
-        "target": "Moon",
-        "instrumentid": "26",   # LRO NAC-R
-        "producttype": "CDRNAC", # Calibrated Data Records
-        "query": "footprint",
-        "results": "m",          # minimal metadata
+        "target": "moon",
+        "ihid": "LRO",
+        "iid": "LROC",
+        "pt": "CDRNAC4",
+        "minlat": f"{min(lat_min, lat_max):.4f}",
+        "maxlat": f"{max(lat_min, lat_max):.4f}",
+        "westernlon": f"{w_lon:.4f}",
+        "easternlon": f"{e_lon:.4f}",
         "output": "JSON",
-        "loc": "f",
-        "minlat": str(lat_min),
-        "maxlat": str(lat_max),
-        "westlon": str(lon_min),
-        "eastlon": str(lon_max),
+        "limit": "2",
+        "results": "fp",
     }
 
     base_url = "https://oderest.rsl.wustl.edu/live2/"
@@ -214,12 +220,13 @@ def query_ode_nac(
     url = f"{base_url}?{query_string}"
 
     logger.info(
-        "ODE NAC query: bbox=[%.4f,%.4f,%.4f,%.4f] url=%s",
-        lon_min, lat_min, lon_max, lat_max, url,
+        "ODE NAC query: bbox=[lat:%.3f..%.3f, lon:%.3f..%.3f] url=%s",
+        lat_min, lat_max, w_lon, e_lon, url,
     )
 
     try:
-        with urllib.request.urlopen(url, timeout=timeout_s) as resp:
+        req = urllib.request.Request(url, headers={"User-Agent": "SIH26166-LunarPipeline/1.0"})
+        with urllib.request.urlopen(req, timeout=min(timeout_s, 10)) as resp:
             import json
             data = json.loads(resp.read().decode("utf-8"))
     except urllib.error.URLError as e:
@@ -229,7 +236,7 @@ def query_ode_nac(
         logger.warning("ODE NAC query failed: %s", e)
         return None
 
-    # Parse ODE response — look for download URLs
+    # Parse ODE response -- look for download URLs
     products = []
     try:
         ode_results = data.get("ODEResults", {})
@@ -249,23 +256,32 @@ def query_ode_nac(
         return None
 
     if not products:
-        logger.info("ODE NAC: no products found for bbox [%.4f,%.4f,%.4f,%.4f]", *bbox)
+        logger.info("ODE NAC: no products found for bbox [lat:%.3f..%.3f, lon:%.3f..%.3f]", lat_min, lat_max, w_lon, e_lon)
         return None
 
-    # Pick first product with a download URL
+    # Prioritize fastest download: _pyr.tif (Pyramided GeoTIFF browse ~40MB) over .IMG (~500MB)
     download_url = None
     product_name = None
     for prod in products:
         try:
-            # ODE response structure: Product > Product_files > Product_file > URL
             files = prod.get("Product_files", {}).get("Product_file", [])
             if isinstance(files, dict):
                 files = [files]
+            # First pass: find pyramided GeoTIFF browse
             for f in files:
                 url_val = f.get("URL", "")
-                if url_val.endswith((".tif", ".TIF", ".jp2", ".JP2", ".img", ".IMG")):
+                if url_val.lower().endswith(("_pyr.tif", ".tif", ".tiff")):
                     download_url = url_val
-                    product_name = prod.get("pds_archive_path", "nac_download")
+                    product_name = prod.get("LabelFileName") or prod.get("Product_name", "nac_download")
+                    break
+            if download_url:
+                break
+            # Second pass: any valid raster
+            for f in files:
+                url_val = f.get("URL", "")
+                if url_val.lower().endswith((".jp2", ".img")):
+                    download_url = url_val
+                    product_name = prod.get("LabelFileName") or prod.get("Product_name", "nac_download")
                     break
             if download_url:
                 break
@@ -276,17 +292,40 @@ def query_ode_nac(
         logger.info("ODE NAC: no downloadable GeoTIFF/JP2 found in response")
         return None
 
-    # Download the NAC file
+    # Download or use cached NAC file
     out_path = Path(out_dir)
     out_path.mkdir(parents=True, exist_ok=True)
     filename = Path(urllib.parse.urlparse(download_url).path).name
     dest = out_path / filename
 
+    # Check local cache first (instant 0 ms return)
+    cache_dir = Path(__file__).resolve().parent.parent.parent / "data" / "reference" / "nac"
+    cache_path = cache_dir / filename
+    if cache_path.exists() and cache_path.stat().st_size > 1024:
+        logger.info("ODE NAC: using cached reference %s", cache_path.name)
+        if dest != cache_path:
+            try:
+                shutil.copyfile(cache_path, dest)
+            except Exception:
+                pass
+        return str(dest)
+
+    if dest.exists() and dest.stat().st_size > 1024:
+        logger.info("ODE NAC: already downloaded %s", dest.name)
+        return str(dest)
+
     logger.info("ODE NAC: downloading %s -> %s", download_url, dest)
     try:
-        with urllib.request.urlopen(download_url, timeout=timeout_s) as resp:
+        req = urllib.request.Request(download_url, headers={"User-Agent": "SIH26166-LunarPipeline/1.0"})
+        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
             with open(dest, "wb") as fout:
-                shutil.copyfileobj(resp, fout)
+                shutil.copyfileobj(resp, fout, length=256 * 1024)
+        # Also copy to permanent reference cache
+        try:
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(dest, cache_path)
+        except Exception:
+            pass
     except Exception as e:
         logger.warning("ODE NAC: download failed: %s", e)
         if dest.exists():
@@ -297,7 +336,7 @@ def query_ode_nac(
         logger.warning("ODE NAC: downloaded file is empty: %s", dest)
         return None
 
-    logger.info("ODE NAC: downloaded %s (%.1f KB)", dest.name, dest.stat().st_size / 1024)
+    logger.info("ODE NAC: downloaded %s (%.1f MB)", dest.name, dest.stat().st_size / (1024 * 1024))
     return str(dest)
 
 
