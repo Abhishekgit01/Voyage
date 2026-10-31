@@ -531,8 +531,6 @@ const MISSION_ORBITAL_CORRIDORS: ScenePreset[] = [
   },
 ];
 
-let missionIngestCounter = 0;
-
   // Ingest & background processing handler for user-provided folders/files
   const handleStartUpload = async (
     files: File[],
@@ -540,19 +538,22 @@ let missionIngestCounter = 0;
     sensor: string,
     fileRoles: ('src' | 'ref')[]
   ) => {
-    // 1. Instantly return user to the home page with the Moon
-    setAppMode('workbench');
-    setActiveCenterTab('3d');
-    setIsAddFilesOpen(false);
-    window.location.hash = 'workbench';
-
     const displayName = pairName.trim() || (files[0] ? files[0].name.replace(/\.[^/.]+$/, '') : 'Mission Dataset');
     const TOTAL_PIPELINE_MS = 30000;
     const startTime = Date.now();
 
-    // Follow the calibrated lunar target queue sequentially so each upload produces the next registered corridor
-    const matchedCorridor = MISSION_ORBITAL_CORRIDORS[missionIngestCounter % MISSION_ORBITAL_CORRIDORS.length];
-    missionIngestCounter++;
+    // Rotate to the NEXT target in the queue (skipping current one so a new image ALWAYS appears)
+    const currentIdx = MISSION_ORBITAL_CORRIDORS.findIndex((c) => c.id === selectedScene.id);
+    const nextIdx = (currentIdx >= 0 ? currentIdx + 1 : 1) % MISSION_ORBITAL_CORRIDORS.length;
+
+    const matchedCorridor = MISSION_ORBITAL_CORRIDORS[nextIdx];
+    // Set selectedScene immediately so any view of 2D or Findings shows the new target right away!
+    setSelectedScene(matchedCorridor);
+
+    // 1. Return user to workbench view
+    setAppMode('workbench');
+    setIsAddFilesOpen(false);
+    window.location.hash = 'workbench';
 
     // 2. Set initial processing state and pipeline stage
     setProcessingState({

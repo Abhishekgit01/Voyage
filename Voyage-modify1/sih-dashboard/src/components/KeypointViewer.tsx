@@ -143,7 +143,7 @@ export const KeypointViewer: React.FC<KeypointViewerProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [pairId, initialKeypoints]);
+  }, [targetPairId, initialKeypoints]);
 
   const [sliderPos, setSliderPos] = useState<number>(50);
   const [lineFilter, setLineFilter] = useState<LineFilter>('both');
@@ -152,7 +152,7 @@ export const KeypointViewer: React.FC<KeypointViewerProps> = ({
   const [viewMode, setViewMode] = useState<'side-by-side' | 'split' | 'checkerboard' | 'residuals' | 'deepzoom'>('side-by-side');
   const [hoveredMatch] = useState<KeypointMatch | null>(null);
   const [showRawRef, setShowRawRef] = useState<boolean>(false);
-  const rawRefUrl = `/assets/pairs/${encodeURIComponent(pairId)}/ref.jpg`;
+  const rawRefUrl = `/assets/pairs/${encodeURIComponent(targetPairId)}/ref.jpg`;
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -583,7 +583,7 @@ export const KeypointViewer: React.FC<KeypointViewerProps> = ({
               }}
             >
               <img
-                key={`${pairId}-src-${imageVersion}`}
+                key={`${targetPairId}-src-${imageVersion}`}
                 ref={leftImgRef}
                 src={liveSrcUrl}
                 onLoad={() => setRepaintTick((t) => t + 1)}
@@ -615,7 +615,7 @@ export const KeypointViewer: React.FC<KeypointViewerProps> = ({
               }}
             >
               <img
-                key={`${pairId}-ref-${imageVersion}`}
+                key={`${targetPairId}-ref-${imageVersion}`}
                 ref={rightImgRef}
                 src={liveRefUrl}
                 onLoad={() => setRepaintTick((t) => t + 1)}
