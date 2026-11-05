@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🛰️ VOYAGE (Quantum RIT Hackathon | Q-Hack)
+# 🛰️ VOYAGE 
 ### Autonomous Cross-Sensor Lunar Co-Registration, Landing Safety & Quantum Correspondence Engine
 
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
@@ -12,7 +12,6 @@
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
 [![Railway](https://img.shields.io/badge/Railway-Deployable-0B0D0E?style=for-the-badge&logo=railway&logoColor=white)](https://railway.app/)
 
-**Developed for the Quantum RIT Hackathon (Q-Hack)**  
 *Autonomous, scale-invariant, illumination-robust optical correspondence and Safe Landing Zone (SLZ) verification pipeline for Chandrayaan-2 payloads (OHRC, TMC-2, IIRS) and global lunar baselines (LRO NAC, WAC).*
 
 ---
@@ -199,7 +198,6 @@ $$\delta y = \frac{R(x_0, y_0-1) - R(x_0, y_0+1)}{2 \cdot [R(x_0, y_0-1) - 2R(x_
 
 ## 👥 Contributors & Attribution
 
-- **Quantum RIT Hackathon (Q-Hack)** — Team Voyage
 - **Domain**: Quantum Image Co-Registration, QAOA Graph Consensus & Precision Lunar Navigation
 - **Primary Data Sources**:
   - **ISRO ISSDC PRADAN**: Chandrayaan-2 OHRC, TMC-2, and IIRS data products courtesy of the Indian Space Research Organisation.
@@ -208,6 +206,5 @@ $$\delta y = \frac{R(x_0, y_0-1) - R(x_0, y_0+1)}{2 \cdot [R(x_0, y_0-1) - 2R(x_
 ---
 
 <div align="center">
-  <b>VOYAGE · Quantum RIT Hackathon · Q-Hack</b><br/>
   <i>Pioneering Precision Autonomous Lunar Navigation & Landing Site Certification.</i>
 </div>
